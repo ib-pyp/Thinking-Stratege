@@ -2592,51 +2592,48 @@ async function generatePDF(){
   const sheetEl = document.getElementById('sheet');
   if(!sheetEl) throw new Error('저장할 내용을 찾을 수 없어요.');
 
+  // ── 준비: 숨길 요소 처리 ──
   const actions = sheetEl.querySelector('.sheet-actions');
+  const collabPanel = sheetEl.querySelector('#collabPanel');
   const prevActionsDisplay = actions ? actions.style.display : '';
+  const prevCollabDisplay = collabPanel ? collabPanel.style.display : '';
   if(actions) actions.style.display = 'none';
+  if(collabPanel) collabPanel.style.display = 'none';
 
+  // ── textarea 높이 자동 확장 ──
   const textareas = Array.from(sheetEl.querySelectorAll('textarea'));
   const originalStyles = textareas.map(ta => ({
-    el: ta,
-    height: ta.style.height,
-    minHeight: ta.style.minHeight,
-    overflow: ta.style.overflow,
+    el: ta, height: ta.style.height,
+    minHeight: ta.style.minHeight, overflow: ta.style.overflow,
   }));
   textareas.forEach(ta => {
     ta.style.overflow = 'hidden';
     ta.style.height = 'auto';
-    if(ta.value && ta.value.trim()){
-      ta.style.height = (ta.scrollHeight + 4) + 'px';
-    }
+    ta.style.height = (ta.scrollHeight + 4) + 'px';
   });
 
   const restore = () => {
     if(actions) actions.style.display = prevActionsDisplay;
+    if(collabPanel) collabPanel.style.display = prevCollabDisplay;
     originalStyles.forEach(s => {
       s.el.style.height = s.height;
       s.el.style.minHeight = s.minHeight;
       s.el.style.overflow = s.overflow;
     });
-  };
-
-  // A4 비율로 sheet 너비 고정 (210mm 기준, 96dpi → 794px)
-  const A4_PX_WIDTH = 794;
-  const prevWidth = sheetEl.style.width;
-  const prevMaxWidth = sheetEl.style.maxWidth;
-  sheetEl.style.width = A4_PX_WIDTH + 'px';
-  sheetEl.style.maxWidth = A4_PX_WIDTH + 'px';
-
-  // textarea 높이 자동 확장 (내용 잘림 방지)
-  sheetEl.querySelectorAll('textarea').forEach(ta => {
-    ta.style.height = 'auto';
-    ta.style.height = ta.scrollHeight + 'px';
-  });
-
-  const restoreWidth = () => {
     sheetEl.style.width = prevWidth;
     sheetEl.style.maxWidth = prevMaxWidth;
+    sheetEl.style.position = prevPosition;
+    sheetEl.style.left = prevLeft;
   };
+
+  // ── A4 너비로 고정 + 화면 밖으로 배치(레이아웃 깨지지 않게) ──
+  const A4_PX_WIDTH = 794;
+  const prevWidth    = sheetEl.style.width;
+  const prevMaxWidth = sheetEl.style.maxWidth;
+  const prevPosition = sheetEl.style.position;
+  const prevLeft     = sheetEl.style.left;
+  sheetEl.style.width    = A4_PX_WIDTH + 'px';
+  sheetEl.style.maxWidth = A4_PX_WIDTH + 'px';
 
   try {
     const canvas = await html2canvas(sheetEl, {
@@ -2676,72 +2673,85 @@ async function generatePDF(){
     const margin = 10;
     const imgW = pageW - margin * 2;                  // 190mm
     const imgH = canvas.height * imgW / canvas.width; // 실제 비율 높이
-    const imgData = canvas.toDataURL('image/jpeg', 0.93);
+    const imgData = canvas.toDataURL('image/png');
 
     const pageContentH = pageH - margin * 2;  // 277mm
+    const pxPerMm = canvas.width / imgW;
+    const pageHpx = pageContentH * pxPerMm;
 
     if(imgH <= pageContentH){
-      // 한 페이지에 딱 맞는 경우
-      pdf.addImage(imgData, 'JPEG', margin, margin, imgW, imgH);
+      pdf.addImage(imgData, 'PNG', margin, margin, imgW, imgH);
     } else {
-      // 여러 페이지: 요소 경계에서 자르기
-      const pxPerMm = canvas.width / imgW;  // px/mm 비율
-      const pageHpx = pageContentH * pxPerMm; // 한 페이지 높이(px)
+      // ── 요소 경계 기반 페이지 분할 ──
+      // canvas 좌표계에서 각 블록 요소의 offsetTop 수집
+      const scale = 2;
+      const breakPoints = new Set([0]);
 
-      // sheet 내부의 주요 블록 요소들의 Y위치 수집 (페이지 경계 후보)
-      const sheetRect = sheetEl.getBoundingClientRect();
-      const breakCandidates = [0]; // 첫 페이지 시작
-      const blockSelectors = [
-        '.sheet-head','.ib-info-box','.guide',
-        '.mblock','.mcell','.tile-section',
-        'h3','h4','.prompt-label','.row-wrap',
-        '.field-group','.col-wrap','.box-wrap',
-        'table','tr','p','.tip-box',
-        '[class*="section"]','[class*="block"]','[class*="card"]'
-      ];
-      sheetEl.querySelectorAll(blockSelectors.join(',')).forEach(el => {
-        const r = el.getBoundingClientRect();
-        const relTop = (r.top - sheetRect.top) * 2; // scale:2 보정
-        if(relTop > 20) breakCandidates.push(relTop);
+      // sheet 내 직접 자식 수준의 주요 블록들 수집
+      const candidates = sheetEl.querySelectorAll(
+        '.sheet-head, .ib-info-box, .guide, ' +
+        '.mblock, .mcell, ' +
+        'h3, h4, ' +
+        '.prompt-row, .field-wrap, .input-row, ' +
+        '[class*="row"], [class*="block"], [class*="section"], [class*="card"], [class*="box"]'
+      );
+
+      candidates.forEach(el => {
+        let offsetY = 0;
+        let node = el;
+        while(node && node !== sheetEl){
+          offsetY += node.offsetTop;
+          node = node.offsetParent;
+          if(node === document.body || !node) break;
+        }
+        // el이 sheetEl 안에 있을 때만 사용
+        if(offsetY > 0 && offsetY < sheetEl.scrollHeight){
+          breakPoints.add(Math.floor(offsetY * scale));
+        }
       });
-      breakCandidates.sort((a,b)=>a-b);
-      // 중복 제거 (10px 이내)
-      const breaks = breakCandidates.filter((v,i,arr)=> i===0 || v - arr[i-1] > 10);
 
-      // 페이지별로 적절한 분할점 찾기
-      const pageCuts = [0]; // 각 페이지 시작 Y(px)
+      const sortedBreaks = Array.from(breakPoints).sort((a,b)=>a-b);
+
+      // 페이지 컷 결정: pageHpx 마다 가장 가까운 요소 경계 찾기
+      const pageCuts = [0];
       let pageStart = 0;
-      while(pageStart < canvas.height){
-        const pageEnd = pageStart + pageHpx;
-        if(pageEnd >= canvas.height) break;
-        // pageEnd 직전의 가장 가까운 break 후보 찾기
-        let bestCut = pageEnd;
-        for(let i = breaks.length - 1; i >= 0; i--){
-          if(breaks[i] <= pageEnd && breaks[i] > pageStart + pageHpx * 0.3){
-            bestCut = breaks[i];
-            break;
+      while(pageStart < canvas.height - 20){
+        const ideal = pageStart + pageHpx;
+        if(ideal >= canvas.height){ break; }
+        // ideal 지점 ±15% 범위 안에서 가장 가까운 경계 찾기
+        const lo = ideal - pageHpx * 0.20;
+        const hi = ideal + pageHpx * 0.05;
+        let best = ideal;
+        let bestDist = Infinity;
+        for(const bp of sortedBreaks){
+          if(bp > lo && bp < hi){
+            const d = Math.abs(bp - ideal);
+            if(d < bestDist){ bestDist = d; best = bp; }
           }
         }
-        pageCuts.push(bestCut);
-        pageStart = bestCut;
+        // 적절한 경계를 못 찾으면 ideal 그대로
+        pageCuts.push(Math.round(best));
+        pageStart = Math.round(best);
       }
       pageCuts.push(canvas.height);
 
-      // 각 페이지 렌더링
       for(let i = 0; i < pageCuts.length - 1; i++){
         const srcY = pageCuts[i];
         const srcH = pageCuts[i+1] - srcY;
+        if(srcH <= 0) continue;
+
         const tmp = document.createElement('canvas');
-        tmp.width = canvas.width;
-        tmp.height = Math.ceil(pageHpx); // A4 높이로 패딩
+        tmp.width  = canvas.width;
+        tmp.height = Math.ceil(pageHpx);
         const ctx = tmp.getContext('2d');
         ctx.fillStyle = '#fbf7ef';
         ctx.fillRect(0, 0, tmp.width, tmp.height);
         ctx.drawImage(canvas, 0, srcY, canvas.width, srcH, 0, 0, canvas.width, srcH);
-        const sliceData = tmp.toDataURL('image/jpeg', 0.93);
-        const sliceHmm = srcH / pxPerMm; // 실제 내용 높이(mm)
+
+        const sliceData = tmp.toDataURL('image/png'); // PNG → 흐림 없음
+        const sliceHmm  = Math.min(srcH / pxPerMm, pageContentH);
         if(i > 0) pdf.addPage();
-        pdf.addImage(sliceData, 'JPEG', margin, margin, imgW, Math.min(sliceHmm, pageContentH));
+        pdf.addImage(sliceData, 'PNG', margin, margin, imgW, sliceHmm);
       }
     }
 
