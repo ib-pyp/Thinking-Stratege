@@ -465,16 +465,26 @@
   }
 
   input[type="text"], textarea, input[type="number"]{
-    width:100%;border:2px solid #d4d9d5;background:#fff;padding:16px 18px;
-    font-family:'Gowun Dodum','Noto Sans KR',sans-serif;font-size:17px;
-    resize:vertical;outline:none;border-radius:12px;
-    transition:all .15s;line-height:1.55;
+    width:100%;
+    border:1.5px solid rgba(180,170,155,.35);
+    background:rgba(255,255,255,.82);
+    padding:13px 16px;
+    font-family:'Gowun Dodum','Noto Sans KR',sans-serif;font-size:16px;
+    resize:none;outline:none;
+    border-radius:14px;
+    transition:all .18s;line-height:1.6;
+    box-shadow:0 2px 8px rgba(0,0,0,.06), inset 0 1px 3px rgba(0,0,0,.03);
+    color:var(--ink);
   }
-  input[type="text"]{min-height:56px}
-  textarea{min-height:80px}
+  input[type="text"]{min-height:56px;}
+  textarea{min-height:80px;overflow:hidden}
+  input[type="text"]::placeholder, textarea::placeholder{
+    color:#b0a89a;font-size:15px;
+  }
   input[type="text"]:focus, textarea:focus, input[type="number"]:focus{
-    border-color:var(--bongam-green);
-    box-shadow:0 0 0 3px rgba(45,122,62,.15);
+    border-color:rgba(45,122,62,.4);
+    background:#fff;
+    box-shadow:0 2px 12px rgba(0,0,0,.08), 0 0 0 3px rgba(45,122,62,.10);
   }
   label{display:block;font-weight:700;margin-bottom:10px;font-size:16.5px;color:var(--bongam-green-dark)}
 
@@ -983,7 +993,7 @@
   .tr-row h4{font-family:'Jua',sans-serif;font-size:20px;margin-bottom:6px}
   .tr-row .hint{font-size:14.5px;color:#666;font-family:'Gaegu';margin-bottom:8px;font-weight:700}
   .tr-row .items{display:flex;flex-direction:column;gap:8px}
-  .tr-row input{width:100%;min-height:48px;padding:12px 14px}
+  .tr-row input{width:100%;min-height:56px;padding:13px 16px}
 
   @media (max-width:800px){
     .qe-grid,.cols3,.cols2,.fcs,.wps-grid,.coa-fields,.cec-grid,.bridge-col{grid-template-columns:1fr}
@@ -2434,8 +2444,13 @@ function openTool(id, stageN){
   document.body.style.overflow = 'hidden';
   window.scrollTo(0,0);
   overlay.scrollTop = 0;
+  _arObserver.observe(sheet, {childList:true, subtree:true});
+  // 뒤로가기 버튼으로 닫을 수 있게 히스토리에 추가
+  history.pushState({ tool: id }, '', '#tool-' + id);
   // init callbacks
   if(window._toolInit) window._toolInit();
+  // ── 전체 textarea 자동 리사이즈 ──
+  bindAutoResize(sheet);
   // IB 정보 입력 바인딩 (toolHead가 만든 표)
   bindIbInputs();
   // grab title for share/download naming
@@ -2447,7 +2462,43 @@ function closeTool(){
   document.body.style.overflow = '';
   window._toolInit = null;
   currentToolId = null;
+  _arObserver.disconnect();
+  // 히스토리 정리 (뒤로가기로 닫은 게 아닐 때)
+  if(location.hash.startsWith('#tool-')){
+    history.back();
+  }
 }
+
+// ── textarea 자동 높이 확장 ──
+function autoResize(ta){
+  ta.style.height = 'auto';
+  ta.style.height = (ta.scrollHeight + 2) + 'px';
+}
+function bindAutoResize(container){
+  container.querySelectorAll('textarea').forEach(ta => {
+    // 이미 바인딩된 경우 중복 방지
+    if(ta._autoResizeBound) return;
+    ta._autoResizeBound = true;
+    autoResize(ta); // 초기값 적용
+    ta.addEventListener('input', () => autoResize(ta));
+  });
+}
+// sheet에 동적으로 추가되는 textarea도 잡기 (MutationObserver)
+const _arObserver = new MutationObserver(mutations => {
+  mutations.forEach(m => {
+    m.addedNodes.forEach(node => {
+      if(node.nodeType !== 1) return;
+      if(node.tagName === 'TEXTAREA') { autoResize(node); node.addEventListener('input', ()=>autoResize(node)); node._autoResizeBound=true; }
+      node.querySelectorAll && node.querySelectorAll('textarea').forEach(ta => {
+        if(ta._autoResizeBound) return;
+        ta._autoResizeBound = true;
+        autoResize(ta);
+        ta.addEventListener('input', ()=>autoResize(ta));
+      });
+    });
+  });
+});
+
 
 // ── 배지 클릭 핸들러 ──
 function handleBadgeClick(){
@@ -2588,61 +2639,85 @@ function closeIfOverlay(e){
 // ===== PDF 생성 (Blob 반환, 공통 사용) =====
 // 반환: { blob, filename, base64 } 또는 null(실패)
 // ── PDF용 영역 캡처 헬퍼 ──
-async function captureEl(el, A4_PX_WIDTH){
+// ══════════════════════════════════════════
+// PDF 생성 유틸리티
+// ══════════════════════════════════════════
+
+// 단일 div를 캡처해서 canvas 반환
+async function captureDiv(el, A4W){
+  // textarea 값 → textContent + 높이 자동 확장
+  el.querySelectorAll('textarea').forEach(ta => {
+    ta.textContent = ta.value;
+    ta.style.height = 'auto';
+    ta.style.height = ta.scrollHeight + 'px';
+  });
+  el.querySelectorAll('input').forEach(inp => inp.setAttribute('value', inp.value));
+  // 맵 입력칸 투명 처리
+  el.querySelectorAll('.map-input').forEach(e => {
+    e.style.border = 'none'; e.style.background = 'transparent'; e.style.boxShadow = 'none';
+  });
   return html2canvas(el, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: '#fbf7ef',
-    windowWidth: A4_PX_WIDTH,
-    windowHeight: el.scrollHeight,
-    scrollX: 0, scrollY: 0,
-    onclone: (clonedDoc) => {
-      clonedDoc.querySelectorAll('textarea').forEach(ta => {
-        ta.textContent = ta.value;
-        ta.style.height = 'auto';
-        ta.style.height = ta.scrollHeight + 'px';
-      });
-      clonedDoc.querySelectorAll('input').forEach(inp => inp.setAttribute('value', inp.value));
-      // sheet-actions, collabPanel 숨기기
-      clonedDoc.querySelectorAll('.sheet-actions, #collabPanel').forEach(el => el.style.display='none');
-      // 캡처 대상 스타일 정리
-      const target = clonedDoc.getElementById(el.id) || clonedDoc.querySelector('.'+el.className.split(' ')[0]);
-      if(target){
-        target.style.boxShadow = 'none';
-        target.style.width = A4_PX_WIDTH + 'px';
-        target.style.maxWidth = A4_PX_WIDTH + 'px';
-      }
-    }
+    scale: 2, useCORS: true, backgroundColor: '#fbf7ef',
+    windowWidth: A4W, windowHeight: el.scrollHeight, scrollX: 0, scrollY: 0
   });
 }
 
-// ── canvas → PDF 페이지 추가 (내용 맞게 여러장) ──
-function addCanvasToPdf(pdf, canvas, margin, imgW, pageContentH){
+// canvas를 PDF에 추가 (A4 높이 초과시 단순 슬라이스 — 이미 요소 단위로 분배했으므로 잘릴 일 없음)
+function canvasToPdfPage(pdf, canvas, margin, imgW, pageContentH, isFirst){
   const pxPerMm = canvas.width / imgW;
-  const pageHpx = pageContentH * pxPerMm;
-  const imgH = canvas.height * imgW / canvas.width;
+  const imgH    = canvas.height / pxPerMm;
+  if(!isFirst) pdf.addPage();
+  pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin, imgW, Math.min(imgH, pageContentH));
+}
 
-  if(imgH <= pageContentH){
-    const data = canvas.toDataURL('image/png');
-    pdf.addImage(data, 'PNG', margin, margin, imgW, imgH);
-  } else {
-    let srcY = 0;
-    while(srcY < canvas.height){
-      const sliceH = Math.min(pageHpx, canvas.height - srcY);
-      const tmp = document.createElement('canvas');
-      tmp.width  = canvas.width;
-      tmp.height = Math.ceil(pageHpx);
-      const ctx = tmp.getContext('2d');
-      ctx.fillStyle = '#fbf7ef';
-      ctx.fillRect(0, 0, tmp.width, tmp.height);
-      ctx.drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-      const data = tmp.toDataURL('image/png');
-      const hMm = Math.min(sliceH / pxPerMm, pageContentH);
-      if(srcY > 0) pdf.addPage();
-      pdf.addImage(data, 'PNG', margin, margin, imgW, hMm);
-      srcY += sliceH;
+// 블록 요소 목록 → 높이 기반으로 페이지 묶음으로 분배
+// 각 블록을 페이지에 넣되, 넘치는 블록은 다음 페이지로
+function groupByPage(blocks, A4W, pageContentH){
+  const MM_PER_PX = 25.4 / 96; // 96dpi 기준
+  const pageHpx   = pageContentH / MM_PER_PX;
+  const pages     = [[]];
+  let usedH       = 0;
+
+  blocks.forEach(block => {
+    const bH = block.offsetHeight || block.scrollHeight || 80;
+    if(usedH + bH > pageHpx && pages[pages.length-1].length > 0){
+      pages.push([]);
+      usedH = 0;
     }
-  }
+    pages[pages.length-1].push(block);
+    usedH += bH + 16; // 16px 여백
+  });
+  return pages;
+}
+
+// 블록 배열 → 임시 div에 복제 → canvas 반환
+async function blocksToCanvas(blocks, A4W){
+  const wrap = document.createElement('div');
+  wrap.style.cssText = `width:${A4W}px;background:#fbf7ef;padding:20px;box-sizing:border-box;position:fixed;left:-9999px;top:0;`;
+  blocks.forEach(b => {
+    const clone = b.cloneNode(true);
+    // textarea 값 복원
+    b.querySelectorAll('textarea').forEach((ta,i)=>{
+      const c = clone.querySelectorAll('textarea')[i];
+      if(c){ c.textContent = ta.value; c.style.height='auto'; c.style.height=(ta.scrollHeight+4)+'px'; }
+    });
+    b.querySelectorAll('input').forEach((inp,i)=>{
+      const c = clone.querySelectorAll('input')[i];
+      if(c){ c.value=inp.value; c.setAttribute('value',inp.value); }
+    });
+    // 맵 입력칸 투명
+    clone.querySelectorAll('.map-input').forEach(e=>{
+      e.style.border='none'; e.style.background='transparent'; e.style.boxShadow='none';
+    });
+    wrap.appendChild(clone);
+  });
+  document.body.appendChild(wrap);
+  const c = await html2canvas(wrap, {
+    scale:2, useCORS:true, backgroundColor:'#fbf7ef',
+    windowWidth:A4W, windowHeight:wrap.scrollHeight, scrollX:0, scrollY:0
+  });
+  document.body.removeChild(wrap);
+  return c;
 }
 
 async function generatePDF(){
@@ -2652,177 +2727,92 @@ async function generatePDF(){
   const sheetEl = document.getElementById('sheet');
   if(!sheetEl) throw new Error('저장할 내용을 찾을 수 없어요.');
 
-  // ── 숨길 요소 ──
-  const actions     = sheetEl.querySelector('.sheet-actions');
-  const collabPanel = sheetEl.querySelector('#collabPanel');
-  if(actions)     actions.style.display = 'none';
-  if(collabPanel) collabPanel.style.display = 'none';
-
-  // ── textarea 높이 자동 확장 ──
-  const textareas = Array.from(sheetEl.querySelectorAll('textarea'));
-  const origStyles = textareas.map(ta => ({ el:ta, h:ta.style.height, mh:ta.style.minHeight, ov:ta.style.overflow }));
-  textareas.forEach(ta => { ta.style.overflow='hidden'; ta.style.height='auto'; ta.style.height=(ta.scrollHeight+4)+'px'; });
-
-  // ── A4 너비 고정 ──
   const A4W = 794;
-  const prevW = sheetEl.style.width, prevMW = sheetEl.style.maxWidth;
-  sheetEl.style.width = A4W + 'px';
-  sheetEl.style.maxWidth = A4W + 'px';
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const imgW = pageW - margin * 2;         // 190mm
+  const pageContentH = pageH - margin * 2; // 277mm
+  const MM_PER_PX = 25.4 / 96;
+  const pageHpx = pageContentH / MM_PER_PX; // 277mm → px
+
+  // ── 숨길 요소 ──
+  const actions = sheetEl.querySelector('.sheet-actions');
+  const collab  = sheetEl.querySelector('#collabPanel');
+  if(actions) actions.style.display = 'none';
+  if(collab)  collab.style.display  = 'none';
+
+  // ── textarea 높이 확장 + A4 너비 고정 ──
+  const textareas = Array.from(sheetEl.querySelectorAll('textarea'));
+  const origTA = textareas.map(ta=>({el:ta,h:ta.style.height,mh:ta.style.minHeight,ov:ta.style.overflow}));
+  textareas.forEach(ta=>{ ta.style.overflow='hidden'; ta.style.height='auto'; ta.style.height=(ta.scrollHeight+4)+'px'; });
+  const prevW=sheetEl.style.width, prevMW=sheetEl.style.maxWidth;
+  sheetEl.style.width=A4W+'px'; sheetEl.style.maxWidth=A4W+'px';
 
   const restore = () => {
-    if(actions)     actions.style.display = '';
-    if(collabPanel) collabPanel.style.display = 'none';
-    origStyles.forEach(s => { s.el.style.height=s.h; s.el.style.minHeight=s.mh; s.el.style.overflow=s.ov; });
-    sheetEl.style.width = prevW;
-    sheetEl.style.maxWidth = prevMW;
+    if(actions) actions.style.display='';
+    if(collab)  collab.style.display='none';
+    origTA.forEach(s=>{ s.el.style.height=s.h; s.el.style.minHeight=s.mh; s.el.style.overflow=s.ov; });
+    sheetEl.style.width=prevW; sheetEl.style.maxWidth=prevMW;
   };
 
   try {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ unit:'mm', format:'a4', orientation:'portrait' });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 10;
-    const imgW = pageW - margin * 2;
-    const pageContentH = pageH - margin * 2;
+    // ── 수집: 1페이지 블록 (헤더+탐구정보+가이드) ──
+    const page1Blocks = [];
+    const bodyBlocks  = []; // 나머지 입력 요소들
 
-    // ── 1페이지: 헤더 + 탐구정보 + 가이드 ──
-    const page1El = document.createElement('div');
-    page1El.style.cssText = `width:${A4W}px;background:#fbf7ef;padding:20px;box-sizing:border-box;`;
-    const headEl  = sheetEl.querySelector('.sheet-head');
-    const ibEl    = sheetEl.querySelector('.ib-info-box');
-    const guideEl = sheetEl.querySelector('.guide');
-    if(headEl)  page1El.appendChild(headEl.cloneNode(true));
-    if(ibEl)    page1El.appendChild(ibEl.cloneNode(true));
-    if(guideEl) page1El.appendChild(guideEl.cloneNode(true));
-    // WPS: src 메모 텍스트도 1페이지에 포함
-    if(currentToolId === 'wps'){
-      const wpsSrc = sheetEl.querySelector('#wps-src');
-      const wpsSrcLabel = sheetEl.querySelector('label[for="wps-src"], label:not(.ib-info-header)');
-      // label 찾기 (wps-src 앞의 label)
-      Array.from(sheetEl.children).forEach(child => {
-        if(child.tagName === 'LABEL' || (child.querySelector && child.querySelector('#wps-src'))){
-          if(!child.classList.contains('ib-info-box')){
-            const clone = child.cloneNode(true);
-            child.querySelectorAll('textarea').forEach((ta,i)=>{
-              const c=clone.querySelectorAll('textarea')[i];
-              if(c){c.textContent=ta.value;c.style.height='auto';c.style.height=(ta.scrollHeight+4)+'px';}
-            });
-            page1El.appendChild(clone);
-          }
-        }
-      });
-    }
-
-    // input 값 복원 (cloneNode는 value를 attribute로 안 복사)
-    const origInputs = [...(headEl||{querySelectorAll:()=>[]}).querySelectorAll('input'),
-                        ...(ibEl||{querySelectorAll:()=>[]}).querySelectorAll('input'),
-                        ...(guideEl||{querySelectorAll:()=>[]}).querySelectorAll('input')];
-    page1El.querySelectorAll('input').forEach((inp,i) => { if(origInputs[i]) inp.value = origInputs[i].value; inp.setAttribute('value', inp.value); });
-
-    // sheet-actions 숨기기
-    page1El.querySelectorAll('.sheet-actions, #collabPanel').forEach(el => el.style.display='none');
-    document.body.appendChild(page1El);
-    const canvas1 = await html2canvas(page1El, {
-      scale:2, useCORS:true, backgroundColor:'#fbf7ef',
-      windowWidth:A4W, windowHeight:page1El.scrollHeight,
-      scrollX:0, scrollY:0
+    Array.from(sheetEl.children).forEach(child => {
+      if(child.classList.contains('sheet-actions') || child.id==='collabPanel') return;
+      if(child.classList.contains('sheet-head') ||
+         child.classList.contains('ib-info-box') ||
+         child.classList.contains('guide')){
+        page1Blocks.push(child);
+      } else {
+        bodyBlocks.push(child);
+      }
     });
-    document.body.removeChild(page1El);
 
-    // 1페이지 추가
-    addCanvasToPdf(pdf, canvas1, margin, imgW, pageContentH);
+    // ── 1페이지 캡처 ──
+    const c1 = await blocksToCanvas(page1Blocks, A4W);
+    canvasToPdfPage(pdf, c1, margin, imgW, pageContentH, true);
 
-    // ── 2페이지~: 헤더+탐구정보+가이드 제외한 나머지 입력 영역 ──
-    const SKIP = el => el.classList.contains('sheet-head') || el.classList.contains('ib-info-box') ||
-                       el.classList.contains('guide') || el.classList.contains('sheet-actions') || el.id === 'collabPanel';
+    // ── 2페이지~: 요소 단위로 페이지 자동 분배 ──
+    // 각 블록의 실제 높이를 측정해서 pageHpx 초과 시 다음 페이지로
+    if(bodyBlocks.length > 0){
+      const pages = [[]];
+      let usedH = 0;
+      const PAD = 40; // 페이지 패딩(px) 여유
 
-    const cloneChild = (child) => {
-      const clone = child.cloneNode(true);
-      child.querySelectorAll('textarea').forEach((ta, i) => {
-        const c = clone.querySelectorAll('textarea')[i];
-        if(c){ c.textContent = ta.value; c.style.height='auto'; c.style.height=(ta.scrollHeight+4)+'px'; }
+      bodyBlocks.forEach(block => {
+        // offsetHeight 또는 scrollHeight 중 큰 값
+        const bH = Math.max(block.offsetHeight||0, block.scrollHeight||0) + 16;
+        if(pages[pages.length-1].length > 0 && usedH + bH > pageHpx - PAD){
+          pages.push([]);
+          usedH = 0;
+        }
+        pages[pages.length-1].push(block);
+        usedH += bH;
       });
-      child.querySelectorAll('input').forEach((inp, i) => {
-        const c = clone.querySelectorAll('input')[i];
-        if(c){ c.value = inp.value; c.setAttribute('value', inp.value); }
-      });
-      return clone;
-    };
 
-    const makePageEl = () => {
-      const el = document.createElement('div');
-      el.style.cssText = `width:${A4W}px;background:#fbf7ef;padding:20px;box-sizing:border-box;`;
-      return el;
-    };
-
-    const renderPage = async (el) => {
-      if(el.children.length === 0) return;
-      document.body.appendChild(el);
-      const c = await html2canvas(el, {
-        scale:2, useCORS:true, backgroundColor:'#fbf7ef',
-        windowWidth:A4W, windowHeight:el.scrollHeight, scrollX:0, scrollY:0
-      });
-      document.body.removeChild(el);
-      pdf.addPage();
-      addCanvasToPdf(pdf, c, margin, imgW, pageContentH);
-    };
-
-    // 개념질문(qlens) 특별처리: form/function → 2페이지, 나머지 → 3페이지
-    if(currentToolId === 'qlens'){
-      const allLensCards = sheetEl.querySelectorAll('.q-lens-card');
-      const p2 = makePageEl(), p3 = makePageEl();
-      // form(index 0), function(index 1) → 2페이지
-      // causation ~ responsibility(2~6) → 3페이지
-      allLensCards.forEach((card, i) => {
-        if(i < 2) p2.appendChild(card.cloneNode(true));
-        else p3.appendChild(card.cloneNode(true));
-      });
-      // 주제 input도 2페이지에 포함
-      const topicEl = sheetEl.querySelector('.q-topic');
-      if(topicEl){
-        const tc = topicEl.cloneNode(true);
-        topicEl.querySelectorAll('input').forEach((inp,i)=>{
-          const c=tc.querySelectorAll('input')[i]; if(c){c.value=inp.value;c.setAttribute('value',inp.value);}
-        });
-        p2.insertBefore(tc, p2.firstChild);
+      for(const pageBlocks of pages){
+        if(pageBlocks.length === 0) continue;
+        const c = await blocksToCanvas(pageBlocks, A4W);
+        canvasToPdfPage(pdf, c, margin, imgW, pageContentH, false);
       }
-      await renderPage(p2);
-      await renderPage(p3);
-    } else if(currentToolId === 'wps'){
-      // WPS: wps-grid(Word/Phrase/Sentence) → 2페이지
-      const page2El = makePageEl();
-      const wpsGrid = sheetEl.querySelector('.wps-grid');
-      if(wpsGrid){
-        const clone = wpsGrid.cloneNode(true);
-        wpsGrid.querySelectorAll('textarea').forEach((ta,i)=>{
-          const c=clone.querySelectorAll('textarea')[i];
-          if(c){c.textContent=ta.value;c.style.height='auto';c.style.height=(ta.scrollHeight+4)+'px';}
-        });
-        page2El.appendChild(clone);
-      }
-      await renderPage(page2El);
-    } else {
-      const page2El = makePageEl();
-      Array.from(sheetEl.children).forEach(child => {
-        if(SKIP(child)) return;
-        page2El.appendChild(cloneChild(child));
-      });
-      await renderPage(page2El);
     }
 
     restore();
 
     // ── 파일명 ──
     const now = new Date();
-    const pad = n => String(n).padStart(2,'0');
+    const pad = n=>String(n).padStart(2,'0');
     const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-    const who = (studentInfo.studentName && studentInfo.className) ? `${studentInfo.className}_${studentInfo.studentName}_` : '';
+    const who = (studentInfo.studentName&&studentInfo.className)?`${studentInfo.className}_${studentInfo.studentName}_`:'';
     const filename = safeFilename(`${who}${currentToolTitle}_${stamp}`) + '.pdf';
 
-    const blob    = pdf.output('blob');
-    const dataUri = pdf.output('datauristring');
-    return { blob, filename, dataUri };
+    return { blob:pdf.output('blob'), filename, dataUri:pdf.output('datauristring') };
 
   } catch(err){
     restore();
@@ -5816,6 +5806,22 @@ TOOLS.reflect321 = () => {
     </div>
   `;
 };
+
+
+// ── 뒤로가기 버튼으로 도구 닫기 ──
+window.addEventListener('popstate', (e) => {
+  if(overlay.classList.contains('on')){
+    overlay.classList.remove('on');
+    document.body.style.overflow = '';
+    window._toolInit = null;
+    currentToolId = null;
+    _arObserver.disconnect();
+  }
+});
+// 페이지 로드 시 해시가 있으면 제거
+if(location.hash.startsWith('#tool-')){
+  history.replaceState(null, '', location.pathname);
+}
 
 // ============== ESC to close ==============
 document.addEventListener('keydown', e=>{
