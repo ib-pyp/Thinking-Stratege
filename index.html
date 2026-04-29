@@ -2484,11 +2484,15 @@ async function uploadPdfToDrive(pdfBlob, fileName, folderId){
   const form = new FormData();
   form.append('metadata', new Blob([JSON.stringify(meta)], {type:'application/json'}));
   form.append('file', pdfBlob);
-  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer ' + token },
-    body: form
-  });
+  // supportsAllDrives=true : 공유 드라이브(팀 드라이브) 지원
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true',
+    {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      body: form
+    }
+  );
   const data = await res.json();
   if(!res.ok) throw new Error(data.error?.message || 'Drive 업로드 실패');
   return data; // { id, name }
@@ -2498,12 +2502,21 @@ async function pickDriveFolder(){
   await loadGapiIfNeeded();
   const token = driveAccessToken;
   return new Promise((resolve) => {
-    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+    // 내 드라이브 폴더 뷰
+    const myDriveView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
       .setSelectFolderEnabled(true)
       .setIncludeFolders(true);
+    // 공유 드라이브 뷰
+    const sharedView = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+      .setSelectFolderEnabled(true)
+      .setIncludeFolders(true)
+      .setEnableDrives(true);
     const picker = new google.picker.PickerBuilder()
-      .addView(view)
+      .addView(myDriveView)
+      .addView(sharedView)
+      .enableFeature(google.picker.Feature.SUPPORT_DRIVES)
       .setOAuthToken(token)
+      .setTitle('저장할 폴더를 선택하세요')
       .setCallback((data) => {
         if(data.action === google.picker.Action.PICKED){
           resolve(data.docs[0].id);
@@ -2532,7 +2545,7 @@ async function saveToDrive(){
     showDriveResult('error', '⚠️ 드라이브 권한 요청이 취소됐어요. 다시 눌러주세요.');
     return;
   }
-  // 3) 폴더 선택 (Picker)
+  // 3) 폴더 선택 (Picker) — 내 드라이브 또는 공유 드라이브 선택 가능
   resultBox.innerHTML = `<div class="drive-saving"><div class="spin"></div><div>📂 저장할 폴더를 선택해 주세요...</div></div>`;
   let folderId = null;
   try {
@@ -2543,7 +2556,7 @@ async function saveToDrive(){
       return;
     }
   } catch(e) {
-    // Picker 없이 그냥 루트에 저장
+    console.warn('Picker 오류, 루트에 저장:', e);
     folderId = null;
   }
   // 4) PDF 생성
