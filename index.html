@@ -1062,6 +1062,30 @@
   .collab-members{font-size:12.5px;opacity:.85;}
 
 
+
+  /* ── IB 선택 칩 ── */
+  .ib-chip-wrap{
+    display:flex;flex-wrap:wrap;gap:6px;padding:8px 0;
+  }
+  .ib-chip{
+    display:inline-flex;align-items:center;gap:4px;
+    padding:5px 12px;border-radius:999px;
+    border:1.5px solid #d0ccc4;background:#fafaf7;
+    font-size:13px;color:#555;cursor:pointer;
+    transition:all .15s;user-select:none;
+    font-family:'Gowun Dodum',sans-serif;
+  }
+  .ib-chip:hover{border-color:var(--bongam-green-light);color:var(--bongam-green-dark);}
+  .ib-chip.selected{
+    background:var(--bongam-green);border-color:var(--bongam-green-dark);
+    color:#fff;font-weight:700;
+  }
+  .ib-chip.selected::before{content:'✓ ';}
+  .ib-theme-chip.selected{
+    background:var(--bongam-yellow);border-color:var(--bongam-yellow-dark);
+    color:var(--ink);
+  }
+
   /* ══════════════ 포트폴리오 ══════════════ */
   .portfolio-btn{
     display:inline-flex;align-items:center;gap:6px;
@@ -2525,7 +2549,22 @@ async function saveToDrive(){
   // 4) PDF 생성
   resultBox.innerHTML = `<div class="drive-saving"><div class="spin"></div><div>📄 PDF 만드는 중...</div></div>`;
   let pdfBlob = null;
-  let fileName = (currentToolTitle || 'document') + '.pdf';
+  // 파일명: [날짜] 초학문적주제-탐구단계-도구명(학생명)
+  const _now2 = new Date();
+  const _pad2 = n => String(n).padStart(2,'0');
+  const _dateStr2 = `${_now2.getFullYear()}${_pad2(_now2.getMonth()+1)}${_pad2(_now2.getDate())}`;
+  const _ib2 = getCurrentIb();
+  const _theme2 = (_ib2.theme||'').trim();
+  const _stage2 = (_ib2.inquiryStage||'').trim();
+  const _toolName2 = currentToolTitle || currentToolId;
+  const _user2 = window.getCurrentUser ? window.getCurrentUser() : null;
+  const _sname2 = (_user2?.displayName || studentInfo?.studentName || '').trim();
+  let _parts2 = [];
+  if(_theme2) _parts2.push(_theme2);
+  if(_stage2) _parts2.push(_stage2);
+  _parts2.push(_toolName2);
+  const _suffix2 = _sname2 ? `(${_sname2})` : '';
+  let fileName = safeFilename(`[${_dateStr2}] ${_parts2.join('-')}${_suffix2}`) + '.pdf';
   try {
     const r = await generatePDF();
     // dataUri → Blob
@@ -2995,9 +3034,23 @@ async function generatePDF(){
     // ── 파일명 ──
     const now = new Date();
     const pad = n=>String(n).padStart(2,'0');
-    const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
-    const who = (studentInfo.studentName&&studentInfo.className)?`${studentInfo.className}_${studentInfo.studentName}_`:'';
-    const filename = safeFilename(`${who}${currentToolTitle}_${stamp}`) + '.pdf';
+    const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}`;
+    // IB 정보에서 파일명 구성
+    const ib = getCurrentIb();
+    const theme     = (ib.theme||'').trim();
+    const stage     = (ib.inquiryStage||'').trim();
+    const toolName  = currentToolTitle || currentToolId;
+    // 구글 계정 학생명 (로그인 시) 또는 studentInfo
+    const user = window.getCurrentUser ? window.getCurrentUser() : null;
+    const studentName = (user?.displayName || studentInfo?.studentName || '').trim();
+    // 조합: [날짜] 초학문적주제-탐구단계-도구명(학생명)
+    let nameParts = [];
+    if(theme)  nameParts.push(theme);
+    if(stage)  nameParts.push(stage);
+    nameParts.push(toolName);
+    const nameCore = nameParts.join('-');
+    const nameSuffix = studentName ? `(${studentName})` : '';
+    const filename = safeFilename(`[${dateStr}] ${nameCore}${nameSuffix}`) + '.pdf';
 
     return { blob:pdf.output('blob'), filename, dataUri:pdf.output('datauristring') };
 
@@ -3516,15 +3569,33 @@ function toolHead(title, en, desc, guide){
       <div class="ib-info-header">탐구 정보</div>
       <div class="ib-info-table">
         <div class="ib-label">초학문적 주제</div>
-        <div class="ib-cell ib-full"><input type="text" data-ibkey="theme" value="${escapeHtml(ib.theme||'')}" placeholder="예) 우리는 누구인가" /></div>
+        <div class="ib-cell ib-full">
+          <div class="ib-chip-wrap" id="ib-theme-chips">
+            ${IB_THEMES.map(t=>`<span class="ib-chip ib-theme-chip${(ib.theme||'')==t?" selected":""}" onclick="ibChipSelect('theme','${t}',false,this)">${t}</span>`).join('')}
+          </div>
+        </div>
+        <div class="ib-label">탐구 단계</div>
+        <div class="ib-cell ib-full">
+          <div class="ib-chip-wrap" id="ib-stage-chips">
+            ${IB_STAGES_LIST.map(s=>`<span class="ib-chip${(ib.inquiryStage||'')==s.ko?" selected":""}" onclick="ibChipSelect('inquiryStage','${s.ko}',false,this)">${s.emoji} ${s.ko}</span>`).join('')}
+          </div>
+        </div>
         <div class="ib-label">탐구 질문</div>
         <div class="ib-cell ib-full"><input type="text" data-ibkey="question" value="${escapeHtml(ib.question||'')}" placeholder="중심 아이디어나 탐구 질문을 적어요" /></div>
         <div class="ib-label">명시된 개념</div>
-        <div class="ib-cell"><input type="text" data-ibkey="keyConcepts" value="${escapeHtml(ib.keyConcepts||'')}" placeholder="예) 형태, 기능, 관점" /></div>
+        <div class="ib-cell ib-full">
+          <div class="ib-chip-wrap" id="ib-concept-chips">
+            ${IB_CONCEPTS.map(c=>`<span class="ib-chip${(ib.keyConcepts||'').split(',').map(s=>s.trim()).includes(c)?" selected":""}" onclick="ibChipSelect('keyConcepts','${c}',true,this)">${c}</span>`).join('')}
+          </div>
+        </div>
         <div class="ib-label">기타 개념</div>
-        <div class="ib-cell"><input type="text" data-ibkey="relatedConcepts" value="${escapeHtml(ib.relatedConcepts||'')}" placeholder="예) 공동체, 협력" /></div>
+        <div class="ib-cell ib-full"><input type="text" data-ibkey="relatedConcepts" value="${escapeHtml(ib.relatedConcepts||'')}" placeholder="예) 공동체, 협력" /></div>
         <div class="ib-label">ATL</div>
-        <div class="ib-cell ib-full"><input type="text" data-ibkey="atl" value="${escapeHtml(ib.atl||'')}" placeholder="예) 사고 기능 - 비판적 사고" /></div>
+        <div class="ib-cell ib-full">
+          <div class="ib-chip-wrap" id="ib-atl-chips">
+            ${IB_ATLS.map(a=>`<span class="ib-chip${(ib.atl||'').split(',').map(s=>s.trim()).includes(a)?" selected":""}" onclick="ibChipSelect('atl','${a}',true,this)">${a}</span>`).join('')}
+          </div>
+        </div>
       </div>
     </div>
     <div class="guide">${guide}</div>
@@ -3534,6 +3605,7 @@ function toolHead(title, en, desc, guide){
 // IB 정보 입력 시 현재 도구의 저장 데이터에 합치기 (도구별 독립 저장)
 function bindIbInputs(){
   if(!sheet) return;
+  // input
   sheet.querySelectorAll('.ib-info-table input[data-ibkey]').forEach(inp => {
     inp.addEventListener('input', () => {
       const data = store[currentToolId] || {};
@@ -3542,6 +3614,66 @@ function bindIbInputs(){
       saveState(currentToolId, data);
     });
   });
+  // select (탐구 단계)
+  sheet.querySelectorAll('.ib-info-table select[data-ibkey]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const data = store[currentToolId] || {};
+      if(!data._ib) data._ib = {};
+      data._ib[sel.dataset.ibkey] = sel.value;
+      saveState(currentToolId, data);
+    });
+  });
+}
+
+// 현재 IB 정보 가져오기 헬퍼
+function getCurrentIb(){
+  return (store[currentToolId]?._ib) || {};
+}
+
+// ── IB PYP 선택 상수 ──
+const IB_THEMES = [
+  '우리는 누구인가',
+  '우리가 있는 곳과 시간',
+  '우리 자신을 표현하는 방법',
+  '세계가 움직이는 방식',
+  '우리 자신을 조직하는 방법',
+  '지구를 공유하기'
+];
+const IB_STAGES_LIST = [
+  {ko:'관계맺기',        emoji:'🤝'},
+  {ko:'집중하기',        emoji:'🎯'},
+  {ko:'조사하기',        emoji:'🔎'},
+  {ko:'조직 및 정리하기', emoji:'🗂'},
+  {ko:'일반화하기',      emoji:'🌏'},
+  {ko:'전이하기',        emoji:'🚀'},
+  {ko:'성찰하기',        emoji:'🪞'},
+];
+const IB_CONCEPTS = ['형태','기능','인과관계','변화','연결','관점','책임'];
+const IB_ATLS = [
+  '사고 기능','조사 기능','의사소통 기능','사회적 기능','자기 관리 기능'
+];
+
+// 칩 선택 핸들러
+function ibChipSelect(ibkey, value, multi, chipEl){
+  const data = store[currentToolId] || {};
+  if(!data._ib) data._ib = {};
+  if(multi){
+    const current = (data._ib[ibkey]||'').split(',').map(s=>s.trim()).filter(Boolean);
+    const idx = current.indexOf(value);
+    if(idx >= 0) current.splice(idx,1);
+    else current.push(value);
+    data._ib[ibkey] = current.join(', ');
+    chipEl.closest('.ib-chip-wrap').querySelectorAll('.ib-chip').forEach(c => {
+      c.classList.toggle('selected', current.includes(c.textContent.replace('✓ ','').trim()));
+    });
+  } else {
+    if(data._ib[ibkey] === value) data._ib[ibkey] = '';
+    else data._ib[ibkey] = value;
+    chipEl.closest('.ib-chip-wrap').querySelectorAll('.ib-chip').forEach(c => {
+      c.classList.toggle('selected', c.textContent.replace('✓ ','').trim() === data._ib[ibkey]);
+    });
+  }
+  saveState(currentToolId, data);
 }
 
 // ================================================
