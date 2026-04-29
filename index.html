@@ -3571,13 +3571,13 @@ function toolHead(title, en, desc, guide){
         <div class="ib-label">초학문적 주제</div>
         <div class="ib-cell ib-full">
           <div class="ib-chip-wrap" id="ib-theme-chips">
-            ${IB_THEMES.map(t=>`<span class="ib-chip ib-theme-chip${(ib.theme||'')==t?" selected":""}" onclick="ibChipSelect('theme','${t}',false,this)">${t}</span>`).join('')}
+            ${IB_THEMES.map(t=>`<span class="ib-chip ib-theme-chip${(ib.theme||'')==t?" selected":""}" data-value="${t}" onclick="ibChipSelect('theme','${t}',false,this)">${t}</span>`).join('')}
           </div>
         </div>
         <div class="ib-label">탐구 단계</div>
         <div class="ib-cell ib-full">
           <div class="ib-chip-wrap" id="ib-stage-chips">
-            ${IB_STAGES_LIST.map(s=>`<span class="ib-chip${(ib.inquiryStage||'')==s.ko?" selected":""}" onclick="ibChipSelect('inquiryStage','${s.ko}',false,this)">${s.emoji} ${s.ko}</span>`).join('')}
+            ${IB_STAGES_LIST.map(s=>`<span class="ib-chip${(ib.inquiryStage||'')==s.ko?" selected":""}" data-value="${s.ko}" onclick="ibChipSelect('inquiryStage','${s.ko}',false,this)">${s.emoji} ${s.ko}</span>`).join('')}
           </div>
         </div>
         <div class="ib-label">탐구 질문</div>
@@ -3585,7 +3585,7 @@ function toolHead(title, en, desc, guide){
         <div class="ib-label">명시된 개념</div>
         <div class="ib-cell ib-full">
           <div class="ib-chip-wrap" id="ib-concept-chips">
-            ${IB_CONCEPTS.map(c=>`<span class="ib-chip${(ib.keyConcepts||'').split(',').map(s=>s.trim()).includes(c)?" selected":""}" onclick="ibChipSelect('keyConcepts','${c}',true,this)">${c}</span>`).join('')}
+            ${IB_CONCEPTS.map(c=>`<span class="ib-chip${(ib.keyConcepts||'').split(',').map(s=>s.trim()).includes(c)?" selected":""}" data-value="${c}" onclick="ibChipSelect('keyConcepts','${c}',true,this)">${c}</span>`).join('')}
           </div>
         </div>
         <div class="ib-label">기타 개념</div>
@@ -3593,7 +3593,7 @@ function toolHead(title, en, desc, guide){
         <div class="ib-label">ATL</div>
         <div class="ib-cell ib-full">
           <div class="ib-chip-wrap" id="ib-atl-chips">
-            ${IB_ATLS.map(a=>`<span class="ib-chip${(ib.atl||'').split(',').map(s=>s.trim()).includes(a)?" selected":""}" onclick="ibChipSelect('atl','${a}',true,this)">${a}</span>`).join('')}
+            ${IB_ATLS.map(a=>`<span class="ib-chip${(ib.atl||'').split(',').map(s=>s.trim()).includes(a)?" selected":""}" data-value="${a}" onclick="ibChipSelect('atl','${a}',true,this)">${a}</span>`).join('')}
           </div>
         </div>
       </div>
@@ -3633,11 +3633,11 @@ function getCurrentIb(){
 // ── IB PYP 선택 상수 ──
 const IB_THEMES = [
   '우리는 누구인가',
-  '우리가 있는 곳과 시간',
+  '우리가 속한 공간과 시간',
   '우리 자신을 표현하는 방법',
-  '세계가 움직이는 방식',
-  '우리 자신을 조직하는 방법',
-  '지구를 공유하기'
+  '세계가 돌아가는 방식',
+  '우리 자신을 조직하는 방식',
+  '우리 모두의 지구'
 ];
 const IB_STAGES_LIST = [
   {ko:'관계맺기',        emoji:'🤝'},
@@ -3663,14 +3663,17 @@ function ibChipSelect(ibkey, value, multi, chipEl){
     if(idx >= 0) current.splice(idx,1);
     else current.push(value);
     data._ib[ibkey] = current.join(', ');
+    // data-value 속성으로 비교 (이모지 포함 텍스트 문제 해결)
     chipEl.closest('.ib-chip-wrap').querySelectorAll('.ib-chip').forEach(c => {
-      c.classList.toggle('selected', current.includes(c.textContent.replace('✓ ','').trim()));
+      const cv = c.dataset.value || c.textContent.replace('✓ ','').trim();
+      c.classList.toggle('selected', current.includes(cv));
     });
   } else {
     if(data._ib[ibkey] === value) data._ib[ibkey] = '';
     else data._ib[ibkey] = value;
     chipEl.closest('.ib-chip-wrap').querySelectorAll('.ib-chip').forEach(c => {
-      c.classList.toggle('selected', c.textContent.replace('✓ ','').trim() === data._ib[ibkey]);
+      const cv = c.dataset.value || c.textContent.replace('✓ ','').trim();
+      c.classList.toggle('selected', cv === data._ib[ibkey]);
     });
   }
   saveState(currentToolId, data);
