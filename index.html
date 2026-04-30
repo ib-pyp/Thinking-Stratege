@@ -1789,6 +1789,13 @@ const store = {};
 function saveState(key, data){
   store[key] = data;
   showSaved();
+  // Firebase 개인 저장
+  if(window.fbSaveData) window.fbSaveData(key, data);
+  // 공동작업 방 송신
+  const _cs = window.getCollabState ? window.getCollabState() : {};
+  if(_cs.roomId && _cs.toolId === key && window.fbCollabSend){
+    window.fbCollabSend(data);
+  }
 }
 function loadState(key, fallback){
   return store[key] ?? fallback;
@@ -3016,31 +3023,38 @@ window._fbCollabReceive = (toolId, contentStr) => {
   try {
     const content = JSON.parse(contentStr);
     store[toolId] = content;
-    // 현재 열린 도구라면 UI 갱신
+    // 현재 열린 도구라면 완전 재렌더링
     if(currentToolId === toolId && sheet){
-      // textarea 값 동기화
+      // 방법1: data-key로 직접 업데이트
+      let updated = 0;
       Object.entries(content).forEach(([key, val]) => {
+        if(key === '_ib') return; // IB 정보는 별도 처리
         const el = sheet.querySelector(`[data-key="${key}"]`);
-        if(el && el.tagName === 'TEXTAREA') el.value = val;
-        else if(el && el.tagName === 'INPUT') el.value = val;
+        if(el){
+          if(el.tagName === 'TEXTAREA' || el.tagName === 'INPUT'){
+            if(el.value !== String(val)){ el.value = val; updated++; }
+          }
+        }
       });
-      toast('👥 친구가 내용을 업데이트했어요!');
+      // 방법2: id로 직접 업데이트 (data-key 없는 경우)
+      Object.entries(content).forEach(([key, val]) => {
+        if(key === '_ib') return;
+        const el = document.getElementById(key);
+        if(el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')){
+          if(el.value !== String(val)){ el.value = val; updated++; }
+        }
+      });
+      // textarea 높이 재조정
+      sheet.querySelectorAll('textarea').forEach(ta => {
+        ta.style.height = 'auto';
+        ta.style.height = ta.scrollHeight + 'px';
+      });
+      if(updated > 0) toast('👥 친구가 내용을 업데이트했어요!');
     }
-  } catch(e){}
+  } catch(e){ console.warn('collab receive error', e); }
 };
 
-// ── 저장 훅: 로그인 상태면 Firebase에도 저장 ──
-const _origSaveStore = window.saveStore;
-window.saveStore = function(toolId, data){
-  if(_origSaveStore) _origSaveStore(toolId, data);
-  // Firebase 개인 저장
-  if(window.fbSaveData) window.fbSaveData(toolId, data);
-  // 공동작업 방에도 전송
-  const state = window.getCollabState ? window.getCollabState() : {};
-  if(state.roomId && state.toolId === toolId && window.fbCollabSend){
-    window.fbCollabSend(data);
-  }
-};
+// saveStore 훅은 saveState 내부에 통합됨
 
 function closeIfOverlay(e){
   if(e.target === overlay) closeTool();
