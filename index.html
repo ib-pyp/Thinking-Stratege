@@ -2810,6 +2810,7 @@ function openTool(id, stageN){
   if(!fn){ alert('도구를 준비 중입니다.'); return; }
   currentToolId = id;
   sheet.innerHTML = fn(stageN);
+  sheet.dataset.stageN = stageN;
   overlay.classList.add('on');
   document.body.style.overflow = 'hidden';
   window.scrollTo(0,0);
@@ -3026,33 +3027,22 @@ window._fbCollabReceive = (toolId, contentStr) => {
   try {
     const content = JSON.parse(contentStr);
     store[toolId] = content;
-    // 현재 열린 도구라면 완전 재렌더링
-    if(currentToolId === toolId && sheet){
-      // 방법1: data-key로 직접 업데이트
-      let updated = 0;
-      Object.entries(content).forEach(([key, val]) => {
-        if(key === '_ib') return; // IB 정보는 별도 처리
-        const el = sheet.querySelector(`[data-key="${key}"]`);
-        if(el){
-          if(el.tagName === 'TEXTAREA' || el.tagName === 'INPUT'){
-            if(el.value !== String(val)){ el.value = val; updated++; }
-          }
-        }
-      });
-      // 방법2: id로 직접 업데이트 (data-key 없는 경우)
-      Object.entries(content).forEach(([key, val]) => {
-        if(key === '_ib') return;
-        const el = document.getElementById(key);
-        if(el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')){
-          if(el.value !== String(val)){ el.value = val; updated++; }
-        }
-      });
-      // textarea 높이 재조정
-      sheet.querySelectorAll('textarea').forEach(ta => {
-        ta.style.height = 'auto';
-        ta.style.height = ta.scrollHeight + 'px';
-      });
-      if(updated > 0) toast('👥 친구가 내용을 업데이트했어요!');
+    // 현재 열린 도구가 같은 도구면 완전 재렌더링
+    if(currentToolId === toolId){
+      const fn = TOOLS[toolId];
+      if(!fn) return;
+      // 현재 스크롤 위치 저장
+      const scrollTop = overlay ? overlay.scrollTop : 0;
+      // 도구 재렌더링
+      const stageN = sheet.dataset.stageN || '1';
+      sheet.innerHTML = fn(stageN);
+      // 초기화 콜백
+      if(window._toolInit) window._toolInit();
+      bindIbInputs();
+      bindAutoResize(sheet);
+      // 스크롤 복원
+      if(overlay) overlay.scrollTop = scrollTop;
+      toast('👥 친구가 내용을 업데이트했어요!');
     }
   } catch(e){ console.warn('collab receive error', e); }
 };
