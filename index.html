@@ -871,12 +871,14 @@
 
   /* Compass */
   .compass-wrap{
-    display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto auto;
-    gap:16px;align-items:stretch;
+    display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto;
+    gap:16px;align-items:stretch;position:relative;
   }
   .compass-rose{
-    grid-column:2;grid-row:1 / span 2;
-    width:200px;height:200px;align-self:center;justify-self:center;
+    position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    width:90px;height:90px;z-index:2;pointer-events:none;
+    opacity:.9;
   }
   .compass-card{border:2px solid var(--ink);padding:20px;background:#fff;position:relative;border-radius:14px}
   .compass-card .ico{
@@ -885,9 +887,12 @@
     font-size:18px;
   }
   .compass-card.n{grid-column:1;grid-row:1}
-  .compass-card.e{grid-column:2;grid-row:1}
+  .compass-card.e{grid-column:2;grid-row:1;text-align:right;}
+  .compass-card.e .ico{left:auto;right:14px;}
   .compass-card.w{grid-column:1;grid-row:2}
-  .compass-card.s{grid-column:2;grid-row:2}
+  .compass-card.s{grid-column:2;grid-row:2;text-align:right;}
+  .compass-card.s .ico{left:auto;right:14px;}
+  .compass-card.e textarea,.compass-card.s textarea{text-align:right;}
   .compass-card h4{font-family:'Jua',sans-serif;font-size:20px;margin:6px 0 4px}
   .compass-card .hint{font-size:14.5px;color:#666;margin-bottom:12px;font-family:'Gaegu';font-weight:700}
   .compass-card textarea{min-height:120px}
@@ -1259,6 +1264,35 @@
   @media(max-width:600px){
     .portfolio-stats{grid-template-columns:repeat(3,1fr);}
     .portfolio-grid{grid-template-columns:repeat(2,1fr);}
+  }
+
+
+  /* ─── KWL 차트 ─── */
+  .kwl-wrap{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
+  }
+  .kwl-card{
+    border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:8px;
+    border:2.5px solid;min-height:280px;
+  }
+  .kwl-k{background:#e8f5eb;border-color:#2d7a3e;}
+  .kwl-w{background:#fff8e8;border-color:#d9a91f;}
+  .kwl-l{background:#e8f0fe;border-color:#4a7de8;}
+  .kwl-badge{
+    width:44px;height:44px;border-radius:12px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Jua',sans-serif;font-size:26px;color:#fff;
+    margin-bottom:4px;flex-shrink:0;
+  }
+  .kwl-k .kwl-badge{background:#2d7a3e;}
+  .kwl-w .kwl-badge{background:#d9a91f;}
+  .kwl-l .kwl-badge{background:#4a7de8;}
+  .kwl-title{font-family:'Jua',sans-serif;font-size:20px;color:var(--ink);}
+  .kwl-subtitle{font-family:'Nanum Pen Script','Gaegu',cursive;font-size:15px;color:#888;}
+  .kwl-hint{font-size:13.5px;color:#666;margin-bottom:4px;}
+  .kwl-card textarea{flex:1;min-height:120px;background:rgba(255,255,255,.7);}
+  @media(max-width:700px){
+    .kwl-wrap{grid-template-columns:1fr;}
   }
 
   @media print{
@@ -1749,7 +1783,8 @@ const SECTION_GROUPS = [
         tools:[
           {id:"fourcs",   ko:"The 4 Cs",                      en:"4 Cs",     tip:"Connections·Challenge·Concepts·Changes"},
           {id:"gsce",     ko:"Generate-Sort-Connect-Elaborate",en:"GSCE",     tip:"생성·분류·연결·정교화로 지식 지도 만들기"},
-          {id:"headlines",ko:"헤드라인",                       en:"Headlines",tip:"배운 것을 한 줄 신문 제목으로 압축해요"}
+          {id:"headlines",ko:"헤드라인",                       en:"Headlines",tip:"배운 것을 한 줄 신문 제목으로 압축해요"},
+          {id:"kwl",      ko:"KWL 차트",                       en:"KWL Chart", tip:"알고 있는 것·알고 싶은 것·배운 것으로 탐구를 정리해요"}
         ]
       },
       {
@@ -6019,6 +6054,58 @@ function updateHeadlinePreview(){
   const best_el = document.getElementById('hl-best'); if(best_el) best_el.textContent = best;
   const t = document.getElementById('hl-topic-p'); if(t) t.textContent = document.getElementById('hl-topic').value || '주제';
 }
+
+// ---------- KWL Chart ----------
+TOOLS.kwl = () => {
+  const saved = loadState('kwl', {topic:'', know:'', want:'', learned:''});
+  setTimeout(()=>{
+    ['topic','know','want','learned'].forEach(k=>{
+      const el = document.getElementById('kwl-'+k); if(el) el.value = saved[k]||'';
+    });
+  },0);
+  window._toolInit = ()=>{
+    sheet.querySelectorAll('input,textarea').forEach(el=>el.addEventListener('input',()=>{
+      const d={};
+      ['topic','know','want','learned'].forEach(k=>{
+        d[k] = (document.getElementById('kwl-'+k)||{value:''}).value;
+      });
+      saveState('kwl',d);
+    }));
+  };
+  return toolHead(
+    'KWL 차트', 'KWL Chart',
+    '탐구 전·중·후 나의 앎을 정리하는 도구예요. 알고 있는 것에서 시작해 배운 것으로 마무리해요.',
+    '💡 <strong>K</strong>=알고 있는 것(Know), <strong>W</strong>=알고 싶은 것(Want to know), <strong>L</strong>=배운 것(Learned)'
+  ) + `
+    <div style="margin-bottom:18px">
+      <label>📌 탐구 주제</label>
+      <input id="kwl-topic" placeholder="예) 물의 순환" />
+    </div>
+    <div class="kwl-wrap">
+      <div class="kwl-card kwl-k">
+        <div class="kwl-badge">K</div>
+        <div class="kwl-title">알고 있는 것</div>
+        <div class="kwl-subtitle">Know</div>
+        <div class="kwl-hint">이미 알고 있거나 생각하는 것은?</div>
+        <textarea id="kwl-know" placeholder="탐구 전에 내가 알고 있는 것들을 적어요"></textarea>
+      </div>
+      <div class="kwl-card kwl-w">
+        <div class="kwl-badge">W</div>
+        <div class="kwl-title">알고 싶은 것</div>
+        <div class="kwl-subtitle">Want to know</div>
+        <div class="kwl-hint">탐구를 통해 알고 싶은 것은?</div>
+        <textarea id="kwl-want" placeholder="탐구하면서 답하고 싶은 질문들을 적어요"></textarea>
+      </div>
+      <div class="kwl-card kwl-l">
+        <div class="kwl-badge">L</div>
+        <div class="kwl-title">배운 것</div>
+        <div class="kwl-subtitle">Learned</div>
+        <div class="kwl-hint">탐구 후 새롭게 알게 된 것은?</div>
+        <textarea id="kwl-learned" placeholder="탐구를 마치고 배운 것들을 적어요"></textarea>
+      </div>
+    </div>
+  `;
+};
 
 // ---------- Claim-Support-Question ----------
 TOOLS.csq = () => {
