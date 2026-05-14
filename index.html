@@ -3058,12 +3058,14 @@ window._fbCollabReceive = (toolId, contentStr) => {
       // 도구 재렌더링
       const stageN = sheet.dataset.stageN || '1';
       sheet.innerHTML = fn(stageN);
-      // 초기화 콜백
-      if(window._toolInit) window._toolInit();
-      bindIbInputs();
-      bindAutoResize(sheet);
-      // 스크롤 복원
-      if(overlay) overlay.scrollTop = scrollTop;
+      sheet.dataset.stageN = stageN;
+      // 초기화 콜백 - DOM 그려진 후 실행
+      setTimeout(() => {
+        if(window._toolInit) window._toolInit();
+        bindIbInputs();
+        bindAutoResize(sheet);
+        if(overlay) overlay.scrollTop = scrollTop;
+      }, 50);
       toast('👥 친구가 내용을 업데이트했어요!');
     }
   } catch(e){ console.warn('collab receive error', e); }
