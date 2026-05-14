@@ -877,8 +877,7 @@
   .compass-rose{
     position:absolute;top:50%;left:50%;
     transform:translate(-50%,-50%);
-    width:90px;height:90px;z-index:2;pointer-events:none;
-    opacity:.9;
+    width:90px;height:90px;z-index:2;pointer-events:none;opacity:.9;
   }
   .compass-card{border:2px solid var(--ink);padding:20px;background:#fff;position:relative;border-radius:14px}
   .compass-card .ico{
@@ -1268,22 +1267,12 @@
 
 
   /* ─── KWL 차트 ─── */
-  .kwl-wrap{
-    display:grid;grid-template-columns:repeat(3,1fr);gap:16px;
-  }
-  .kwl-card{
-    border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:8px;
-    border:2.5px solid;min-height:280px;
-  }
+  .kwl-wrap{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+  .kwl-card{border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:8px;border:2.5px solid;min-height:280px;}
   .kwl-k{background:#e8f5eb;border-color:#2d7a3e;}
   .kwl-w{background:#fff8e8;border-color:#d9a91f;}
   .kwl-l{background:#e8f0fe;border-color:#4a7de8;}
-  .kwl-badge{
-    width:44px;height:44px;border-radius:12px;
-    display:flex;align-items:center;justify-content:center;
-    font-family:'Jua',sans-serif;font-size:26px;color:#fff;
-    margin-bottom:4px;flex-shrink:0;
-  }
+  .kwl-badge{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Jua',sans-serif;font-size:26px;color:#fff;margin-bottom:4px;flex-shrink:0;}
   .kwl-k .kwl-badge{background:#2d7a3e;}
   .kwl-w .kwl-badge{background:#d9a91f;}
   .kwl-l .kwl-badge{background:#4a7de8;}
@@ -1291,9 +1280,7 @@
   .kwl-subtitle{font-family:'Nanum Pen Script','Gaegu',cursive;font-size:15px;color:#888;}
   .kwl-hint{font-size:13.5px;color:#666;margin-bottom:4px;}
   .kwl-card textarea{flex:1;min-height:120px;background:rgba(255,255,255,.7);}
-  @media(max-width:700px){
-    .kwl-wrap{grid-template-columns:1fr;}
-  }
+  @media(max-width:700px){.kwl-wrap{grid-template-columns:1fr;}}
 
   @media print{
     .mblock textarea, .mcell textarea,
@@ -5883,7 +5870,10 @@ TOOLS.gsce = () => {
     '주제에 대한 아이디어를 생성·분류·연결·정교화하여 개념 지도를 만드는 도구입니다.',
     '💡 ① 떠오르는 아이디어 먼저 생성 → ② 범주로 묶고(분류) → ③ 연결 관계 설명 → ④ 추가·심화(정교화).'
   ) + `
-    <div style="margin-bottom:14px"><label>🎯 주제</label><input id="gsce-topic" placeholder="예) 에너지" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>🎯 주제</label>
+      <input id="gsce-topic" placeholder="예) 에너지" />
+    </div>
     <div class="gsce-stage">
       <div><span class="step">Step 1</span><h4 style="display:inline">🌱 Generate · 아이디어 생성</h4></div>
       <div class="add-row"><input id="gsce-add" placeholder="아이디어를 입력하고 추가하세요" onkeypress="if(event.key==='Enter')addGSCE()" /><button class="btn primary" onclick="addGSCE()">＋ 추가</button></div>
@@ -6018,7 +6008,10 @@ TOOLS.headlines = () => {
     '학습한 내용의 핵심을 한 줄의 신문 헤드라인으로 압축하는 도구입니다.',
     '💡 좋은 헤드라인은 <strong>짧고</strong>, <strong>핵심</strong>을 담고, <strong>이야기를 궁금하게</strong> 만들어요. 여러 개를 써 본 뒤 가장 좋은 것을 골라 보세요.'
   ) + `
-    <div style="margin-bottom:14px"><label>📰 다룬 주제·사건·학습</label><input id="hl-topic" placeholder="예) 지속가능한 에너지 탐구" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>📰 다룬 주제·사건·학습</label>
+      <input id="hl-topic" placeholder="예) 지속가능한 에너지 탐구" />
+    </div>
     <div id="hl-rows">
       ${[0,1,2].map(i=>`
         <div class="headline-row">
@@ -6077,7 +6070,7 @@ TOOLS.kwl = () => {
     '탐구 전·중·후 나의 앎을 정리하는 도구예요. 알고 있는 것에서 시작해 배운 것으로 마무리해요.',
     '💡 <strong>K</strong>=알고 있는 것(Know), <strong>W</strong>=알고 싶은 것(Want to know), <strong>L</strong>=배운 것(Learned)'
   ) + `
-    <div style="margin-bottom:18px">
+    <div class="q-topic" style="--plum:#9b7bb8">
       <label>📌 탐구 주제</label>
       <input id="kwl-topic" placeholder="예) 물의 순환" />
     </div>
@@ -6122,7 +6115,10 @@ TOOLS.csq = () => {
     '어떤 일반화나 주장을 세우고, 근거와 여전히 남는 질문을 함께 제시하는 도구입니다.',
     '💡 <strong>Claim</strong>(주장·일반화) → <strong>Support</strong>(근거·예시·자료) → <strong>Question</strong>(아직 남는 의문·반례 가능성).'
   ) + `
-    <div style="margin-bottom:14px"><label>🎯 주제</label><input id="csq-topic" placeholder="예) 식물의 구조와 기능" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>🎯 주제</label>
+      <input id="csq-topic" placeholder="예) 식물의 구조와 기능" />
+    </div>
     <div id="csq-rows"></div>
     <button class="btn" onclick="addCSQ()">＋ 주장 추가</button>
   `;
@@ -6217,7 +6213,10 @@ TOOLS.imagine = () => {
     '탐구한 개념·지식을 새로운 상황·가정에 적용해 창의적으로 사고하고 전이하는 도구입니다.',
     '💡 "<strong>만약 ~이라면, 어떻게 될까?</strong>"처럼 가정을 세우고, 배운 원리·개념을 바탕으로 가능한 결과를 상상해요.'
   ) + `
-    <div style="margin-bottom:14px"><label>🎯 배운 주제·개념</label><input id="if-topic" placeholder="예) 생태계의 균형" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>🎯 배운 주제·개념</label>
+      <input id="if-topic" placeholder="예) 생태계의 균형" />
+    </div>
     <div id="if-rows" class="imagine-wrap"></div>
     <button class="btn" onclick="addImagine()">＋ 가정 추가</button>
   `;
@@ -6269,7 +6268,10 @@ TOOLS.coa = () => {
     '배운 것을 실천으로 옮길 수 있는 영역을 나(self) → 우리(community) → 세계(world) 세 원으로 확장하는 도구입니다.',
     '💡 "<strong>지금·여기</strong>에서 <strong>내가 할 수 있는 것</strong>"부터 시작해, 점점 더 큰 영역으로 실천을 넓혀가요.'
   ) + `
-    <div style="margin-bottom:14px"><label>🎯 주제·배움</label><input id="coa-topic" placeholder="예) 플라스틱 줄이기" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>🎯 주제·배움</label>
+      <input id="coa-topic" placeholder="예) 플라스틱 줄이기" />
+    </div>
     <div class="coa-wrap">
       <svg class="coa-svg" viewBox="0 0 600 400">
         <circle cx="300" cy="200" r="180" fill="none" stroke="#6b4a7c" stroke-width="3" stroke-dasharray="4 4"/>
@@ -6305,7 +6307,10 @@ TOOLS.iutt = () => {
     '학습을 통해 나의 생각이 어떻게 변화했는지 대비해 드러내는 성찰 도구입니다.',
     '💡 단순히 "뭘 배웠다"가 아니라, <strong>이해가 어떻게 바뀌었는지</strong>를 구체적으로 써야 좋은 성찰이 돼요.'
   ) + `
-    <div style="margin-bottom:14px"><label>🎯 주제·개념</label><input id="iu-topic" placeholder="예) 문화 다양성" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>🎯 주제·개념</label>
+      <input id="iu-topic" placeholder="예) 문화 다양성" />
+    </div>
     <div class="iutt">
       <div class="side">
         <h4>🕰 예전에는...</h4>
@@ -6339,7 +6344,10 @@ TOOLS.cec = () => {
     '새로 배운 내용을 기존의 앎에 연결하고, 이해를 확장하고, 남은 도전을 확인하는 성찰 도구입니다.',
     '💡 <strong>Connect</strong>(이미 아는 것과 연결) → <strong>Extend</strong>(생각을 확장) → <strong>Challenge</strong>(여전히 어렵거나 도전이 되는 것).'
   ) + `
-    <div style="margin-bottom:14px"><label>🎯 주제·학습</label><input id="cec-topic" placeholder="예) 지역사회 탐구 프로젝트" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>🎯 주제·학습</label>
+      <input id="cec-topic" placeholder="예) 지역사회 탐구 프로젝트" />
+    </div>
     <div class="cec-grid">
       <div class="col-box" style="border-top:6px solid var(--teal)"><h4>🔗 Connect</h4><div class="sub">이미 알고 있던 것과 어떻게 연결되나요?</div><textarea id="cec-c" placeholder="기존 지식·경험과의 연결"></textarea></div>
       <div class="col-box" style="border-top:6px solid var(--olive)"><h4>🌱 Extend</h4><div class="sub">내 생각을 어떤 새로운 방향으로 확장했나요?</div><textarea id="cec-e" placeholder="생각이 어떻게 넓어졌는지"></textarea></div>
@@ -6373,7 +6381,10 @@ TOOLS.reflect321 = () => {
     '학습 마무리에 3가지 배운 점 · 2가지 흥미로웠던 점 · 1가지 남은 질문을 정리하는 빠른 성찰 루틴입니다.',
     '💡 수업·단원·프로젝트 마무리마다 쓰면 성장의 기록이 쌓여요.'
   ) + `
-    <div style="margin-bottom:14px"><label>🎯 주제·학습</label><input id="r321-topic" placeholder="예) 오늘의 과학 수업" /></div>
+    <div class="q-topic" style="--plum:#9b7bb8">
+      <label>🎯 주제·학습</label>
+      <input id="r321-topic" placeholder="예) 오늘의 과학 수업" />
+    </div>
     <div class="three-rows">
       <div class="tr-row">
         <div class="n">3</div>
