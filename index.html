@@ -3079,10 +3079,29 @@ function openCollabPanel(toolId){
   panel.style.display = 'block';
 }
 
+// 패널 내용만 갱신 (열림/닫힘 상태 유지)
+function refreshCollabPanel(toolId){
+  const panel = document.getElementById('collabPanel');
+  if(!panel) return;
+  const state = window.getCollabState ? window.getCollabState() : {};
+  if(state.roomId){
+    panel.innerHTML = `
+      <div class="collab-bar">
+        <span><span class="collab-dot"></span>공동작업 진행 중</span>
+        <span class="collab-code">${state.roomId}</span>
+        <span class="collab-members">이 숫자를 친구에게 알려주세요</span>
+        <button class="btn" style="background:rgba(255,255,255,.2);color:#fff;border-color:rgba(255,255,255,.4)"
+          onclick="window.leaveCollabRoom&&window.leaveCollabRoom();refreshCollabPanel('${toolId}')">🚪 방 나가기</button>
+      </div>`;
+    panel.style.display = 'block';
+  }
+}
+
 async function startCollab(toolId){
   if(!window.createCollabRoom){ toast('Firebase가 아직 로딩 중이에요. 잠시 후 다시 눌러주세요!'); return; }
   const roomId = await window.createCollabRoom(toolId);
-  openCollabPanel(toolId); // 패널 새로고침
+  // 패널 닫지 않고 내용만 갱신
+  refreshCollabPanel(toolId);
   // 현재 도구 데이터를 방에 공유
   const data = store[toolId];
   if(data && window.fbCollabSend) window.fbCollabSend(data);
@@ -3094,7 +3113,7 @@ async function joinCollab(toolId){
   if(!code || code.length < 6){ toast('숫자 6자리를 입력해 주세요!'); return; }
   if(!window.joinCollabRoom){ toast('Firebase가 아직 로딩 중이에요.'); return; }
   await window.joinCollabRoom(code, toolId);
-  openCollabPanel(toolId);
+  refreshCollabPanel(toolId);
 }
 
 // ── 공동작업 수신 훅 ──
