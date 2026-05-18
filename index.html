@@ -3120,6 +3120,182 @@ function openTool(id, stageN){
   // 역할별 버튼 추가
   addRoleButtons(id);
 }
+// ══════════════════════════════════════════
+// 역할별 버튼 (연습하기 / 수업안내)
+// ══════════════════════════════════════════
+
+async function addRoleButtons(toolId){
+  const user = window.getCurrentUser ? window.getCurrentUser() : null;
+  if(!user) return;
+
+  const role = await getUserRole();
+  console.log('addRoleButtons role:', role, 'toolId:', toolId);
+
+  const actions = sheet.querySelector('.sheet-actions');
+  if(!actions) return;
+
+  // 기존 역할 버튼/패널 제거
+  actions.querySelectorAll('.btn-practice,.btn-teacher').forEach(b=>b.remove());
+  sheet.querySelectorAll('#practicePanel,#teacherPanel').forEach(p=>p.remove());
+
+  if(role === 'student'){
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-practice';
+    btn.textContent = '🎮 연습하기';
+    btn.onclick = () => togglePracticePanel(toolId);
+    const portfolioBtn = actions.querySelector('#btnSavePortfolio');
+    if(portfolioBtn) portfolioBtn.after(btn);
+    else actions.prepend(btn);
+    const panel = document.createElement('div');
+    panel.id = 'practicePanel';
+    panel.style.display = 'none';
+    actions.after(panel);
+
+  } else if(role === 'teacher'){
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-teacher';
+    btn.textContent = '📖 수업 안내';
+    btn.onclick = () => toggleTeacherPanel(toolId);
+    const portfolioBtn = actions.querySelector('#btnSavePortfolio');
+    if(portfolioBtn) portfolioBtn.after(btn);
+    else actions.prepend(btn);
+    const panel = document.createElement('div');
+    panel.id = 'teacherPanel';
+    panel.style.display = 'none';
+    actions.after(panel);
+  }
+}
+
+function togglePracticePanel(toolId){
+  const panel = document.getElementById('practicePanel');
+  if(!panel) return;
+  if(panel.style.display !== 'none'){ panel.style.display='none'; return; }
+  panel.style.display = 'block';
+  renderPracticePanel(toolId, panel);
+}
+
+function renderPracticePanel(toolId, panel){
+  const userData = window._accountData || {};
+  const grade = userData.grade || 3;
+  const SUBJECTS = ['국어','사회','도덕','수학','과학'];
+  panel.innerHTML = `
+    <div class="practice-panel">
+      <h3>🎮 연습하기 — ${currentToolTitle}</h3>
+      <div style="font-size:13.5px;color:#888;margin-bottom:12px">
+        📚 ${grade}학년 · 과목을 선택하고 레벨을 골라보세요!
+      </div>
+      <div class="subject-chips">
+        ${SUBJECTS.map(s=>`<button class="subject-chip" onclick="selectSubject(this,'${s}','${toolId}',${grade})">${s}</button>`).join('')}
+      </div>
+      <div style="font-size:13.5px;color:#888;margin-bottom:8px">💪 레벨 선택</div>
+      <div class="level-chips">
+        <button class="level-chip lv-low"  onclick="selectLevel(this,'하','${toolId}',${grade})">🌱 하</button>
+        <button class="level-chip lv-mid"  onclick="selectLevel(this,'중','${toolId}',${grade})">🌿 중</button>
+        <button class="level-chip lv-high" onclick="selectLevel(this,'상','${toolId}',${grade})">🌳 상</button>
+      </div>
+      <div id="practiceContent"></div>
+    </div>`;
+}
+
+let _practiceState = {subject:'', level:'', toolId:'', grade:3};
+
+function selectSubject(el, subject, toolId, grade){
+  document.querySelectorAll('.subject-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  _practiceState = {..._practiceState, subject, toolId, grade};
+  if(_practiceState.level) showPracticeContent();
+}
+
+function selectLevel(el, level, toolId, grade){
+  document.querySelectorAll('.level-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  _practiceState = {..._practiceState, level, toolId, grade};
+  if(_practiceState.subject) showPracticeContent();
+}
+
+function showPracticeContent(){
+  const {subject, level, toolId, grade} = _practiceState;
+  const contentEl = document.getElementById('practiceContent');
+  if(!contentEl) return;
+
+  const data = (PRACTICE_DATA[toolId] || {})[grade]?.[subject]?.[level]
+            || (PRACTICE_DATA[toolId] || {})['all']?.[subject]?.[level]
+            || (PRACTICE_DATA[toolId] || {})['all']?.['all']?.[level];
+
+  if(!data){
+    contentEl.innerHTML = `<div class="practice-content">
+      <div class="p-title">✏️ ${grade}학년 ${subject} — ${level} 레벨</div>
+      <p style="color:#999;font-size:14px">아직 이 조합의 연습 예시가 없어요. 곧 추가될 예정이에요!</p>
+    </div>`;
+    return;
+  }
+
+  contentEl.innerHTML = `<div class="practice-content">
+    <div class="p-title">✏️ ${grade}학년 ${subject} — ${level} 레벨</div>
+    <div style="font-size:15px;font-weight:700;margin-bottom:8px">📌 주제: ${data.topic}</div>
+    <div style="margin-bottom:10px;font-size:14px;color:#555">${data.context}</div>
+    ${data.steps.map((s,i)=>`
+      <div class="practice-step">
+        <div class="step-n">${i+1}</div>
+        <div style="font-size:14px">${s}</div>
+      </div>`).join('')}
+    <div class="p-hint">💡 ${data.hint}</div>
+  </div>`;
+}
+
+function toggleTeacherPanel(toolId){
+  const panel = document.getElementById('teacherPanel');
+  if(!panel) return;
+  if(panel.style.display !== 'none'){ panel.style.display='none'; return; }
+  panel.style.display = 'block';
+  renderTeacherPanel(toolId, panel);
+}
+
+function renderTeacherPanel(toolId, panel){
+  const SUBJECTS = ['국어','사회','도덕','수학','과학'];
+  panel.innerHTML = `
+    <div class="teacher-panel">
+      <h3>📖 수업 안내 — ${currentToolTitle}</h3>
+      <div class="subject-chips">
+        ${SUBJECTS.map(s=>`<button class="subject-chip" style="border-color:#4a7de8" onclick="showTeacherContent(this,'${s}','${toolId}')">${s}</button>`).join('')}
+      </div>
+      <div id="teacherContent"></div>
+    </div>`;
+}
+
+function showTeacherContent(el, subject, toolId){
+  document.querySelectorAll('.teacher-panel .subject-chip').forEach(c=>{
+    c.classList.remove('active');
+    c.style.background=''; c.style.color=''; c.style.borderColor='#4a7de8';
+  });
+  el.classList.add('active');
+  el.style.background='#4a7de8'; el.style.color='#fff'; el.style.borderColor='#1565c0';
+
+  const contentEl = document.getElementById('teacherContent');
+  if(!contentEl) return;
+
+  let html = '';
+  for(let g=1; g<=6; g++){
+    const gData = (PRACTICE_DATA[toolId]||{})[g]?.[subject]
+               || (PRACTICE_DATA[toolId]||{})['all']?.[subject];
+    if(!gData) continue;
+    html += `<div style="margin-bottom:14px">
+      <div style="font-family:'Jua',sans-serif;font-size:15px;color:#1565c0;margin-bottom:6px">${g}학년</div>
+      <div class="teacher-content">`;
+    ['하','중','상'].forEach(lv => {
+      const d = gData[lv];
+      if(!d) return;
+      html += `<div style="margin-bottom:8px">
+        <strong>${lv} 레벨</strong> — ${d.topic}<br>
+        <span style="font-size:13px;color:#555">${d.context}</span>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+  if(!html) html = '<div class="teacher-content" style="color:#999">아직 이 과목의 수업 안내가 없어요.</div>';
+  contentEl.innerHTML = html;
+}
+
 function closeTool(){
   overlay.classList.remove('on');
   document.body.style.overflow = '';
