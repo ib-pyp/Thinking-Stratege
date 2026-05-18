@@ -1663,7 +1663,17 @@
     <h3>🔒 관리자 로그인</h3>
     <p style="font-size:14.5px;color:#666;margin-bottom:14px">관리자 비밀번호를 입력해 주세요.</p>
     <div class="settings-form">
-      <input type="password" id="adminPwInput" placeholder="비밀번호" onkeydown="if(event.key==='Enter')checkAdminPw()" />
+      <div style="position:relative;display:flex;align-items:center;">
+        <input type="password" id="adminPwInput" placeholder="비밀번호 (영문 소문자)"
+          style="width:100%;padding-right:44px;ime-mode:disabled;"
+          onkeydown="if(event.key==='Enter')checkAdminPw()"
+          oninput="this.value=this.value.replace(/[A-Z]/g,c=>c.toLowerCase())" />
+        <button type="button" onclick="toggleAdminPwVisibility()"
+          id="adminPwEye"
+          style="position:absolute;right:10px;background:none;border:none;cursor:pointer;font-size:18px;color:#888;padding:4px;">
+          👁
+        </button>
+      </div>
       <div id="adminPwError" style="color:var(--accent);font-size:13.5px;margin-top:-4px;display:none">⚠️ 비밀번호가 틀렸습니다.</div>
       <div class="mini-actions" style="flex-direction:row;gap:8px;margin-top:8px">
         <button class="btn primary" onclick="checkAdminPw()" style="flex:1">로그인</button>
@@ -1727,6 +1737,7 @@
       </div>
       <div class="admin-section">
         <label>⑪ 계정 관리 — 교사/학생 계정 등록</label>
+        <div id="accountCurrentStats" style="background:var(--green-pale,#e8f5eb);border-radius:10px;padding:10px 14px;margin-bottom:10px;font-size:13.5px;color:var(--bongam-green-dark);display:none"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
           <button class="btn" onclick="downloadAccountTemplate()" style="background:var(--bongam-green);color:#fff;border-color:var(--bongam-green-dark);flex:1;min-width:160px">
             📥 업로드 서식 다운로드
@@ -2033,6 +2044,7 @@ async function uploadAccountFile(input){
     statusEl.textContent = '✅ 업로드 완료!';
     statsEl.textContent = `학생 ${students.length}명, 교사 ${teachers.length}명 등록됐어요.`;
     toast(`✅ 학생 ${students.length}명, 교사 ${teachers.length}명 등록 완료!`);
+    loadAccountStats();
 
     // 캐시 초기화
     window._accountCache = null;
@@ -2335,8 +2347,23 @@ function applyAdminSettings(){
 }
 applyAdminSettings();
 
+function toggleAdminPwVisibility(){
+  const inp = document.getElementById('adminPwInput');
+  const eye = document.getElementById('adminPwEye');
+  if(inp.type === 'password'){
+    inp.type = 'text';
+    eye.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    eye.textContent = '👁';
+  }
+}
+
 function openAdmin(){
   document.getElementById('adminPwInput').value = '';
+  document.getElementById('adminPwInput').type = 'password';
+  const eye = document.getElementById('adminPwEye');
+  if(eye) eye.textContent = '👁';
   document.getElementById('adminPwError').style.display = 'none';
   document.getElementById('adminLoginModal').classList.add('on');
   setTimeout(()=>document.getElementById('adminPwInput').focus(), 100);
@@ -2347,6 +2374,27 @@ function checkAdminPw(){
   if(pw === getAdminPw()){ closeAdminLogin(); openAdminModal(); }
   else { document.getElementById('adminPwError').style.display = 'block'; }
 }
+async function loadAccountStats(){
+  const statsEl = document.getElementById('accountCurrentStats');
+  if(!statsEl) return;
+  if(!window.dbGet || !window.dbRef || !window.getDatabase) return;
+  try {
+    const db = window.getDatabase();
+    const [sSnap, tSnap] = await Promise.all([
+      window.dbGet(window.dbRef(db, 'accounts/students')),
+      window.dbGet(window.dbRef(db, 'accounts/teachers')),
+    ]);
+    const sCount = sSnap.exists() ? Object.keys(sSnap.val()).length : 0;
+    const tCount = tSnap.exists() ? Object.keys(tSnap.val()).length : 0;
+    if(sCount > 0 || tCount > 0){
+      statsEl.style.display = 'block';
+      statsEl.innerHTML = `☁ 현재 등록된 계정: 학생 <strong>${sCount}명</strong>, 교사 <strong>${tCount}명</strong>`;
+    } else {
+      statsEl.style.display = 'none';
+    }
+  } catch(e){ statsEl.style.display = 'none'; }
+}
+
 function openAdminModal(){
   document.getElementById('adm-badge').value    = adminSettings.badge;
   document.getElementById('adm-tagline').value  = adminSettings.tagline;
